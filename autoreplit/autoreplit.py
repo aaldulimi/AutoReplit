@@ -137,7 +137,6 @@ class Repl():
         response = requests.post('https://replit.com/graphql', cookies=self._api_cookies, headers=self._headers, json=json_data).json()
 
         if response[0]['data']['createRepl']['__typename'] == "Repl":
-            title = response[0]['data']['createRepl']['title']
             repl_id = response[0]['data']['createRepl']['id']
             repl_url = 'https://replit.com' + response[0]['data']['createRepl']['url']
 
@@ -303,11 +302,8 @@ class Repl():
         self._console.print(f'[bold red]Repl deleted.')
         return True
 
-
-
 if __name__ == '__main__':
     repl = Repl(mount='example/', packages=['requests'])
-
     output = repl.run('python main.py')
     # print(output)
 
