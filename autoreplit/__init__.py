@@ -1,2 +1,2 @@
 from .repl import Repl
-from .login import browser_login
+from .auth import browser_login
