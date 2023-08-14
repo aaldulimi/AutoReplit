@@ -5,7 +5,6 @@ import shutil
 def format_folder(folder):
     return "'.' " + "'{}'".format(folder.replace(' ', r' ').replace('/', r' '))
 
-
 def flatten_directory(repl_name: str = 'ar', source_dir: str = '.'):
     subprocess.run(f'mkdir {repl_name}', shell=True)
 
@@ -54,8 +53,11 @@ folders=(
 \t{folders_str}
 )   
 """
+    with open('autoreplit/move.sh', 'r') as file:
+        base_script = file.read()
+
     with open(f'{repl_name}/move.sh', 'w') as file:
-        file.write(bash_str + BASH_SCRIPT)
+        file.write(bash_str + base_script)
 
     return repl_name
 
@@ -82,76 +84,3 @@ def all_files(folder: str = './ar'):
             file_count += 1
 
     return files, file_count
-
-
-
-BASH_SCRIPT = """    
-
-
-convert_to_path() {
-    local path=""
-    local first=true
-
-    # Loop through the space-separated path elements and concatenate with slashes
-    for folder in $@; do
-        if [ "$first" = true ]; then
-            if [ "$folder" = "." ]; then
-                path="."
-            else
-                path="$folder"
-            fi
-            first=false
-        else
-            path="$path/$folder"
-        fi
-    done
-
-    echo "$path"
-}
-
-
-
-
-# Iterate through the folders list and convert to paths
-for ((i = 0; i < ${#folders[@]}; i+=2)); do
-    path=$(convert_to_path "${folders[$i]}" "${folders[$i+1]}")
-    echo "$path" 
-    mkdir -p "$path"
-done
-
-
-
-move_file() { 
-  local source_file="$1"
-  local target_file="$2"
-
-  # Remove the leading slash if present in target_file
-  if [[ "$target_file" == /* ]]; then
-    target_file="${target_file#"/"}"
-  fi
-
-  echo "Moving $source_file to $target_file"
-  mv "$source_file" "$target_file"
-}
-
-# Set the separator for folder structure
-separator="!"
-
-
-# Loop through the files in the current directory
-for file in *; do
-  # Check if the file name contains the separator
-  if [[ "$file" == *"$separator"* ]]; then
-    # Extract the target directory path
-    target_dir=$(dirname "${file//$separator//}")
-        
-    # Move the file to the correct location
-    move_file "$file" "${file//$separator//}"
-  fi
-done
-
-
-sleep 5
-rm "$0"
-
-"""
