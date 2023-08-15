@@ -2,7 +2,7 @@ import json
 import re
 from datetime import datetime
 import requests
-from playwright.sync_api import sync_playwright
+import playwright.sync_api 
 from rich.console import Console
 
 USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
@@ -25,7 +25,7 @@ BROWSER_HEADERS = {
     'x-requested-with': 'XMLHttpRequest',
 }
 
-def get_username():
+def get_username() -> str:
     with open(".autoreplit.json", "r") as json_file:
         replit_tools_data = json.load(json_file)
         connect_sid_value = replit_tools_data["connect.sid"]
@@ -50,9 +50,7 @@ def get_username():
 
     return username
 
-
-
-def on_response(response):
+def on_response(response: requests.Response) -> None:
     if response.url == 'https://replit.com/login':
         set_cookie_header = response.headers.get('set-cookie', '')
         match = re.search(r'connect\.sid=([^;]+)', set_cookie_header)
@@ -68,11 +66,10 @@ def on_response(response):
             with open(".autoreplit.json", "w") as json_file:
                 json.dump({"connect.sid": connect_sid_value,
                         "expire": expire_timestamp}, json_file)
-    
 
-def browser_login():
+def browser_login() -> str:
     console = Console()
-    with sync_playwright() as p:
+    with playwright.sync_api.sync_playwright() as p:
         browser = p.firefox.launch(headless=False)
         context = browser.new_context()
         page = context.new_page()

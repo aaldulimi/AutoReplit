@@ -6,13 +6,14 @@ import json
 import time
 import re
 import zipfile
-from playwright.sync_api import sync_playwright, Page
+import platform
+import typing
+import playwright.sync_api
 from rich.console import Console
 from rich.tree import Tree
 from rich.live import Live
 
 # TO DO: Better way to check Repl has finished booting up
-# TO DO: Better way to click on shell terminal
 
 USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
 BROWSER_HEADERS = {
@@ -42,7 +43,7 @@ REPLIT_PYTHON_ORIGIN_ID = '8d4142a6-b4ad-4e1c-940b-15b99773aa04'
 REPLIT_PYTHON_RELEASE_ID = 'fb9329ad-3e62-40c4-8951-e488fdb00ded'
 
 class Repl():
-    def __init__(self, mount: str, packages: list, private: bool = False):
+    def __init__(self, mount: str, packages: typing.Optional[typing.List[str]] = None, private: bool = False):
         self.mount = mount
         self.packages = packages
         self.private = private
@@ -75,7 +76,8 @@ class Repl():
         
         self._browser_context = self._create_browser_context()
         if self.packages:
-            self._mount_stdout = self._install_packages()
+            self._packages_stdout = self._install_packages()
+
         self._mount_files()
 
         self._live.stop()
@@ -96,7 +98,7 @@ class Repl():
             self._console.print('Login first by typing [bold]autoreplit login[/bold] in the terminal.')
             return None
     
-    def _generate_browser_cookies(self):
+    def _generate_browser_cookies(self) -> list:
         browser_cookies = []
         for k, v in self._api_cookies.items():
             browser_cookies.append({
@@ -108,7 +110,7 @@ class Repl():
 
         return browser_cookies
 
-    def _generate_temp_name(self):
+    def _generate_temp_name(self) -> str:
         characters = string.ascii_letters + string.digits
         repl_name = 'AR_' + ''.join(random.choice(characters) for _ in range(9))
 
@@ -117,7 +119,7 @@ class Repl():
 
         return repl_name
 
-    def _create_repl(self):
+    def _create_repl(self) -> typing.Optional[typing.Tuple[str, str]]:
         json_data = [
             {
                 'operationName': 'CreateReplFormCreateRepl',
@@ -149,8 +151,8 @@ class Repl():
         self._console.print('Error creating repl. Please try again.', style="red")
         return None
     
-    def _create_browser_context(self):
-        p = sync_playwright().start()
+    def _create_browser_context(self) -> playwright.sync_api.BrowserContext:
+        p = playwright.sync_api.sync_playwright().start()
         browser = p.firefox.launch(headless=True)
         context = browser.new_context(
             user_agent=USER_AGENT,
@@ -161,7 +163,7 @@ class Repl():
         
         return context
 
-    def _copy_repl_file_content(self, filename: str, page: Page):
+    def _copy_repl_file_content(self, filename: str, page: playwright.sync_api.Page) -> str:
         page.goto(f'{self.repl_url}#{filename}')
         page.wait_for_timeout(NEW_PAGE_WAIT_MS)
 
@@ -169,36 +171,42 @@ class Repl():
         text_content = '\n'.join(cm_line.text_content() for cm_line in cm_line_elements)
         
         return text_content
-    
-    def _install_packages(self):
+
+    def _install_packages(self) -> str:
         self._tree.add("Installing packages")
         self._live.update(self._tree)
 
-        install_command = f"poetry add {' '.join(self.packages)} > {self.repl_name}_log.txt 2>&1 ; touch {self.repl_name}_mount.txt ; sleep 10 ; rm -rf {self.repl_name}_mount.txt"
+        install_command = f"""import os; os.system("poetry add {' '.join(self.packages)} > {self.repl_name}_log.txt 2>&1 ; touch {self.repl_name}_packages.txt ; sleep 10 ; rm -rf {self.repl_name}_packages.txt ; echo -n '' > main.py")"""
 
         page = self._browser_context.new_page()
         page.goto(self.repl_url)
         page.wait_for_timeout(NEW_PAGE_WAIT_MS)
 
-        button = page.locator('[role="tab"] >> text=Shell')
-        button.click()
-        # page.get_by_label("Shell").locator("div").filter(has_text=re.compile(r"^W$")).nth(2).click()
-
         page.keyboard.type(install_command)
         page.keyboard.press("Enter")
 
-        while not page.get_by_title(f'{self.repl_name}_mount.txt').is_visible():
+        if platform.system() == "Darwin":
+            page.keyboard.press("Meta+Enter")  
+        else:
+            page.keyboard.press("Control+Enter") 
+
+        while not page.get_by_title(f'{self.repl_name}_packages.txt').is_visible():
             pass
         
         stdout = self._copy_repl_file_content(f'{self.repl_name}_log.txt', page)
 
-        page.get_by_label("Shell").locator("div").filter(has_text=re.compile(r"^W$")).nth(2).click()
-        page.keyboard.type(f'rm -rf {self.repl_name}_log.txt')
-        page.keyboard.press("Enter")
+        page.goto(f'{self.repl_url}#main.py')
+        page.wait_for_timeout(NEW_PAGE_WAIT_MS)
+        page.keyboard.type(f'import os; os.system("rm -rf {self.repl_name}_log.txt")')
+        
+        if platform.system() == "Darwin":
+            page.keyboard.press("Meta+Enter")  
+        else:
+            page.keyboard.press("Control+Enter") 
     
         return stdout
     
-    def _mount_files(self):
+    def _mount_files(self) -> None:
         self._tree.add(f"Mounting {self.mount}")
         self._live.update(self._tree)
 
@@ -216,7 +224,7 @@ class Repl():
         button = page.locator('[role="tab"] >> text=Shell')
         button.click()
         page.get_by_label("Shell").locator("div").filter(has_text=re.compile(r"^W$")).nth(2).click()
-        page.keyboard.type(f'rm -rf main.py')
+        page.keyboard.type('rm -rf main.py')
         page.keyboard.press("Enter")
         
         page.wait_for_timeout(STANDARD_WAIT_MS)
@@ -236,7 +244,7 @@ class Repl():
 
         os.remove(f'{self.repl_name}.zip')
 
-    def _close_main_tab(self, page: Page):
+    def _close_main_tab(self, page: playwright.sync_api.Page) -> None:
         div_elements = page.query_selector_all("div")
 
         for div_element in div_elements:
@@ -247,32 +255,31 @@ class Repl():
                     close_button.click()
                     break
 
-    def run(self, command: str, timeout: int = 10):
+    def run(self, command: str, timeout: int = 10) -> str:
         page = self._browser_context.new_page()
         page.goto(self.repl_url)
         page.wait_for_timeout(NEW_PAGE_WAIT_MS)
 
-        full_command = f'{command} > {self.repl_name}_log.txt 2>&1 ; touch {self.repl_name}_run.txt ; sleep 5 ; rm -rf {self.repl_name}_run.txt'
+        full_command = f'{command} > {self.repl_name}_run_log.txt 2>&1 ; touch {self.repl_name}_run.txt ; sleep 5 ; rm -rf {self.repl_name}_run.txt'
 
         button = page.locator('[role="tab"] >> text=Shell')
         button.click()
         page.get_by_label("Shell").locator("div").filter(has_text=re.compile(r"^W$")).nth(2).click()
         page.keyboard.type(full_command)
         page.keyboard.press("Enter")
-
         self._console.print(f'[bold green]Running: [white]{command}')
         
         while not page.get_by_title(f'{self.repl_name}_run.txt').is_visible():
             pass
         
         self._close_main_tab(page)
-        stdout = self._copy_repl_file_content(f'{self.repl_name}_log.txt', page)
+        stdout = self._copy_repl_file_content(f'{self.repl_name}_run_log.txt', page)
 
         button = page.locator('[role="tab"] >> text=Shell')
         button.click()
         page.get_by_label("Shell").locator("div").filter(has_text=re.compile(r"^W$")).nth(2).click()
 
-        page.keyboard.type(f'rm -rf {self.repl_name}_log.txt')
+        page.keyboard.type(f'rm -rf {self.repl_name}_run_log.txt')
         page.keyboard.press("Enter")
         page.wait_for_timeout(STANDARD_WAIT_MS)
 
@@ -281,7 +288,7 @@ class Repl():
         self.stdout += stdout
         return stdout
     
-    def delete(self):
+    def delete(self) -> bool:
         json_data = [
             {
                 'operationName': 'ReplsDashboardDeleteRepl',
@@ -300,4 +307,3 @@ class Repl():
 
         self._console.print(f'[bold red]Repl deleted.')
         return True
-
