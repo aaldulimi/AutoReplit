@@ -74,7 +74,8 @@ class Repl():
             return None
         
         self._browser_context = self._create_browser_context()
-        self._mount_stdout = self._install_packages()
+        if self.packages:
+            self._mount_stdout = self._install_packages()
         self._mount_files()
 
         self._live.stop()

@@ -2,8 +2,9 @@ import click
 import os
 import json
 import time 
-from auth import browser_login
 from rich.console import Console
+from auth import browser_login
+from repl import Repl
 
 @click.group()
 def cli():
@@ -23,9 +24,15 @@ def login(force):
                 return    
   
     browser_login()
-    
+
+@click.command()
+def init():
+    # TO DO: ignore .autoreplit.json, poetry.toml, poetry.lock, venv + any others that interfere with Replit's 
+    repl = Repl(mount='./', packages=[])
+
 
 cli.add_command(login)
+cli.add_command(init)
 
 if __name__ == '__main__':
     cli()
