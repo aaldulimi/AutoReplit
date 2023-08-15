@@ -43,8 +43,10 @@ REPLIT_PYTHON_ORIGIN_ID = '8d4142a6-b4ad-4e1c-940b-15b99773aa04'
 REPLIT_PYTHON_RELEASE_ID = 'fb9329ad-3e62-40c4-8951-e488fdb00ded'
 
 class Repl():
-    def __init__(self, mount: str, packages: typing.Optional[typing.List[str]] = None, private: bool = False):
+    def __init__(self, mount: str, packages: typing.Optional[typing.List[str]] = None, private: bool = False,
+                 mount_ignore: typing.Optional[typing.Dict[str, typing.List[str]]] = None):
         self.mount = mount
+        self.mount_ignore = mount_ignore
         self.packages = packages
         self.private = private
 
@@ -213,9 +215,18 @@ class Repl():
 
         with zipfile.ZipFile(f'.autoreplit/{self.repl_name}.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
             for root, _, files in os.walk(self.mount):
+                if self.mount_ignore and 'folders' in self.mount_ignore:
+                    if self.mount_ignore and any(ignore_dir in root for ignore_dir in self.mount_ignore['folders']):
+                        continue
+
                 for file in files:
                     file_path = os.path.join(root, file)
                     rel_path = os.path.relpath(file_path, self.mount)
+
+                    if self.mount_ignore and 'files' in self.mount_ignore:
+                        if any(ignore_file == rel_path for ignore_file in self.mount_ignore['files']):
+                            continue
+
                     zipf.write(file_path, rel_path)
 
         page = self._browser_context.new_page()
@@ -242,6 +253,7 @@ class Repl():
         page.get_by_label("Shell").locator("div").filter(has_text=re.compile(r"^W$")).nth(2).click()
         page.keyboard.type(f"""python -c "import zipfile; zipfile.ZipFile('{self.repl_name}.zip', 'r').extractall()" ; rm -rf {self.repl_name}.zip""")
         page.keyboard.press("Enter")
+        page.wait_for_timeout(STANDARD_WAIT_MS)
 
         os.remove(f'.autoreplit/{self.repl_name}.zip')
 
