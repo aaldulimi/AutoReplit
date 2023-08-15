@@ -5,12 +5,11 @@ import os
 import json
 import time
 import re
-import shutil
+import zipfile
 from playwright.sync_api import sync_playwright, Page
 from rich.console import Console
 from rich.tree import Tree
 from rich.live import Live
-from . import utilities
 
 # TO DO: Better way to check Repl has finished booting up
 # TO DO: Better way to click on shell terminal
@@ -202,14 +201,17 @@ class Repl():
         self._tree.add(f"Mounting {self.mount}")
         self._live.update(self._tree)
 
-        utilities.flatten_directory(self.repl_name, self.mount)
-        files_to_upload, file_count = utilities.all_files(f"./{self.repl_name}")
+        with zipfile.ZipFile(f'{self.repl_name}.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for root, _, files in os.walk(self.mount):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    rel_path = os.path.relpath(file_path, self.mount)
+                    zipf.write(file_path, rel_path)
 
         page = self._browser_context.new_page()
         page.goto(self.repl_url)
         page.wait_for_timeout(NEW_PAGE_WAIT_MS)
 
-        # delete main.py
         button = page.locator('[role="tab"] >> text=Shell')
         button.click()
         page.get_by_label("Shell").locator("div").filter(has_text=re.compile(r"^W$")).nth(2).click()
@@ -219,24 +221,19 @@ class Repl():
         page.wait_for_timeout(STANDARD_WAIT_MS)
         
         input_element = page.locator('input[id^="file-upload-input-0."][type="file"]')
-        input_element.set_input_files(files_to_upload) 
+        input_element.set_input_files(f'{self.repl_name}.zip') 
         page.wait_for_timeout(STANDARD_WAIT_MS)
 
         while page.query_selector("circle") is not None:
             pass
         
         page.wait_for_timeout(STANDARD_WAIT_MS)
-        # button = page.locator('[role="tab"] >> text=Shell')
-        # button.click()
+
         page.get_by_label("Shell").locator("div").filter(has_text=re.compile(r"^W$")).nth(2).click()
-        
-        page.keyboard.type("chmod +x move.sh ; sleep 1 ; ./move.sh")
+        page.keyboard.type(f"""python -c "import zipfile; zipfile.ZipFile('{self.repl_name}.zip', 'r').extractall()" ; rm -rf {self.repl_name}.zip""")
         page.keyboard.press("Enter")
-        
-        page.wait_for_timeout(file_count * MOVE_TIME_PER_FILE_MS)
-        
-        shutil.rmtree(f'./{self.repl_name}', ignore_errors=True)
-        return None
+
+        os.remove(f'{self.repl_name}.zip')
 
     def _close_main_tab(self, page: Page):
         div_elements = page.query_selector_all("div")
