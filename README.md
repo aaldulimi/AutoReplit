@@ -32,4 +32,4 @@ python autoreplit/cli.py init --ignore-file .env --ignore-folder .autoreplit
 - Files that are already ignored: `.DS_Store`
 
 
-#### This is basiccaly my job application for Replit.
+#### This is my job application for Replit :)
