@@ -4,6 +4,7 @@ from datetime import datetime
 import requests
 import playwright.sync_api 
 from rich.console import Console
+import os
 
 USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
 BROWSER_HEADERS = {
@@ -26,7 +27,7 @@ BROWSER_HEADERS = {
 }
 
 def get_username() -> str:
-    with open(".autoreplit.json", "r") as json_file:
+    with open(".autoreplit/config.json", "r") as json_file:
         replit_tools_data = json.load(json_file)
         connect_sid_value = replit_tools_data["connect.sid"]
 
@@ -45,7 +46,7 @@ def get_username() -> str:
     username = response['data']['currentUser']['username']
 
     replit_tools_data['username'] = username
-    with open(".autoreplit.json", "w") as json_file:
+    with open(".autoreplit/config.json", "w") as json_file:
         json.dump(replit_tools_data, json_file)
 
     return username
@@ -63,11 +64,18 @@ def on_response(response: requests.Response) -> None:
             date_format = "%a, %d %b %Y %H:%M:%S %Z"
             expire_timestamp = datetime.strptime(expiry_date_str, date_format).timestamp()
 
-            with open(".autoreplit.json", "w") as json_file:
+            with open(".autoreplit/config.json", "w") as json_file:
                 json.dump({"connect.sid": connect_sid_value,
                         "expire": expire_timestamp}, json_file)
 
+def mk_config() -> None:
+    config_dir = '.autoreplit'
+    if not os.path.exists(config_dir):
+        os.makedirs(config_dir)
+
 def browser_login() -> str:
+    mk_config()
+
     console = Console()
     with playwright.sync_api.sync_playwright() as p:
         browser = p.firefox.launch(headless=False)

@@ -84,8 +84,10 @@ class Repl():
         self._console.print('Repl created successfully.')
 
     def _get_connect_sid(self):
-        if ".autoreplit.json" in os.listdir():
-            with open(".autoreplit.json", "r") as json_file:
+        config_file_path = './.autoreplit/config.json'
+
+        if os.path.exists(config_file_path):
+            with open(config_file_path, "r") as json_file:
                 data = json.load(json_file)
                 if data["expire"] > time.time():
                     # potential edge case; key not found error 
@@ -93,7 +95,6 @@ class Repl():
                 
                 self._console.print('Login expired. Login again by typing [bold]autoreplit login[/bold] in the terminal.')
                 return None
-
         else:
             self._console.print('Login first by typing [bold]autoreplit login[/bold] in the terminal.')
             return None
@@ -210,7 +211,7 @@ class Repl():
         self._tree.add(f"Mounting {self.mount}")
         self._live.update(self._tree)
 
-        with zipfile.ZipFile(f'{self.repl_name}.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
+        with zipfile.ZipFile(f'.autoreplit/{self.repl_name}.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
             for root, _, files in os.walk(self.mount):
                 for file in files:
                     file_path = os.path.join(root, file)
@@ -230,7 +231,7 @@ class Repl():
         page.wait_for_timeout(STANDARD_WAIT_MS)
         
         input_element = page.locator('input[id^="file-upload-input-0."][type="file"]')
-        input_element.set_input_files(f'{self.repl_name}.zip') 
+        input_element.set_input_files(f'.autoreplit/{self.repl_name}.zip') 
         page.wait_for_timeout(STANDARD_WAIT_MS)
 
         while page.query_selector("circle") is not None:
@@ -242,7 +243,7 @@ class Repl():
         page.keyboard.type(f"""python -c "import zipfile; zipfile.ZipFile('{self.repl_name}.zip', 'r').extractall()" ; rm -rf {self.repl_name}.zip""")
         page.keyboard.press("Enter")
 
-        os.remove(f'{self.repl_name}.zip')
+        os.remove(f'.autoreplit/{self.repl_name}.zip')
 
     def _close_main_tab(self, page: playwright.sync_api.Page) -> None:
         div_elements = page.query_selector_all("div")
